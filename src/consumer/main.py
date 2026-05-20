@@ -1,9 +1,3 @@
-"""
-Fitness Tracker — Event Consumer (StatisticsService)
-Обрабатывает события из RabbitMQ и обновляет Read-модель.
-Реализует идемпотентность через processed_event_ids.
-"""
-
 import json
 import os
 import time
@@ -30,18 +24,16 @@ BINDINGS = [
     ("workout.events", "workout.completed",         "q.statistics.workout.completed"),
 ]
 
-# In-memory Read Model (в реальной системе — Redis / PostgreSQL)
+
 read_model = {
     "users": {},         # user_id -> profile
     "workout_counts": {},  # user_id -> int
     "workout_history": {},  # user_id -> [workout]
 }
 
-# Идемпотентность: набор уже обработанных event_id
 processed_event_ids: set = set()
 
 
-# ─── Handlers ────────────────────────────────────────────────────────────────
 
 def handle_user_created(data: dict) -> None:
     user_id = data["user_id"]
@@ -101,16 +93,12 @@ def print_read_model(user_id: str) -> None:
         print(f"  • {w['title']} — {w['duration_minutes']} мин, объём {w['total_volume_kg']} кг")
     print(f"  ────────────────────────────────────────────────────\n")
 
-
-# ─── Message callback ─────────────────────────────────────────────────────────
-
 def on_message(channel, method, properties, body):
     try:
         event = json.loads(body)
         event_id = event.get("event_id", "no-id")
         event_type = event.get("event_type", "unknown")
 
-        # Идемпотентность
         if event_id in processed_event_ids:
             print(f"[Consumer] ⚠️  Дубликат события {event_type} (id={event_id[:8]}...) — пропуск")
             channel.basic_ack(delivery_tag=method.delivery_tag)
@@ -131,8 +119,6 @@ def on_message(channel, method, properties, body):
         print(f"[Consumer] ❌ Ошибка обработки: {e}")
         channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
-
-# ─── Setup & Start ────────────────────────────────────────────────────────────
 
 def connect_with_retry(retries: int = 10, delay: float = 3.0) -> pika.BlockingConnection:
     credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
@@ -163,7 +149,7 @@ def main():
     for exchange, ex_type in EXCHANGES.items():
         channel.exchange_declare(exchange=exchange, exchange_type=ex_type, durable=True)
 
-    # Объявляем очереди и binding'и
+
     for exchange, routing_key, queue_name in BINDINGS:
         channel.queue_declare(queue=queue_name, durable=True)
         channel.queue_bind(exchange=exchange, queue=queue_name, routing_key=routing_key)

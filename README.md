@@ -1,99 +1,139 @@
 # Fitness Tracker — Event-Driven Architecture (Вариант 14)
 
-Домашнее задание по курсу «Архитектура программных систем» — ДЗ 06.
+Домашняя работа по курсу «Архитектура программных систем» — ДЗ 06.
 
 ## Структура проекта
 
 ```
+
 fitness-tracker-eda/
-├── docker-compose.yml          # RabbitMQ + Producer + Consumer
-├── event_driven_design.md      # Описание EDA и CQRS архитектуры
-├── event_catalog.md            # Каталог всех событий системы
-├── README.md                   # Этот файл
+├── docker-compose.yml
+├── event_driven_design.md
+├── event_catalog.md
+├── README.md
 └── src/
-    ├── producer/
-    │   ├── Dockerfile
-    │   ├── requirements.txt
-    │   └── main.py             # Публикует 4 события в RabbitMQ
-    └── consumer/
-        ├── Dockerfile
-        ├── requirements.txt
-        └── main.py             # Обрабатывает события, обновляет Read-модель
-```
+├── producer/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── main.py
+└── consumer/
+├── Dockerfile
+├── requirements.txt
+└── main.py
+
+````id="struct1"
+
+---
 
 ## Быстрый старт
 
 ### Требования
-- Docker + Docker Compose
+- Docker
+- Docker Compose
 
 ### Запуск
 
 ```bash
-# 1. Поднять всё окружение
 docker compose up --build
+````
 
-# Consumer запустится автоматически и начнёт слушать очереди.
-# Producer опубликует 4 события и завершится.
+После запуска:
+
+* Consumer начинает слушать очереди
+* Producer отправляет события и завершает работу
+
+---
+
+## Пример вывода
+
+```id="logs1"
+fitness-consumer | [Consumer] Подключение установлено
+fitness-consumer | [Consumer] Ожидание сообщений...
+
+fitness-producer | [Producer] Подключение установлено
+fitness-producer | [Producer] Отправлено: UserCreated
+fitness-producer | [Producer] Отправлено: WorkoutCreated
+fitness-producer | [Producer] Отправлено: ExerciseAddedToWorkout
+fitness-producer | [Producer] Отправлено: WorkoutCompleted
+
+fitness-consumer | [Consumer] Получено: UserCreated
+fitness-consumer | [Consumer] Профиль создан для Иван Петров
+
+fitness-consumer | [Consumer] Получено: WorkoutCompleted
+fitness-consumer | ─── Read Model ───────────────
+fitness-consumer | Пользователь: Иван Петров
+fitness-consumer | Тренировок: 1
+fitness-consumer | • Силовая тренировка — 55 мин
 ```
 
-### Ожидаемый вывод
+---
+
+## RabbitMQ UI
+
+[http://localhost:15672](http://localhost:15672)
 
 ```
-fitness-consumer | [Consumer] Подключение установлено.
-fitness-consumer | [Consumer] Слушаем: q.statistics.user.created (user.events -> user.created)
-fitness-consumer | [Consumer] Слушаем: q.statistics.workout.created ...
-fitness-consumer | [Consumer] Ожидание событий...
-
-fitness-producer | [Producer] Подключение установлено.
-fitness-producer | [Producer] ✅ Опубликовано [user.created]: UserCreated
-fitness-producer | [Producer] ✅ Опубликовано [workout.created]: WorkoutCreated
-fitness-producer | [Producer] ✅ Опубликовано [workout.exercise.added]: ExerciseAddedToWorkout
-fitness-producer | [Producer] ✅ Опубликовано [workout.completed]: WorkoutCompleted
-
-fitness-consumer | [Consumer] 📨 Получено: UserCreated
-fitness-consumer |   [Statistics] Профиль создан для Иван Петров
-fitness-consumer | [Consumer] 📨 Получено: WorkoutCreated
-fitness-consumer | [Consumer] 📨 Получено: ExerciseAddedToWorkout
-fitness-consumer | [Consumer] 📨 Получено: WorkoutCompleted
-fitness-consumer |   ─── Read Model ────────────────────────────
-fitness-consumer |   Пользователь: Иван Петров (ivan@example.com)
-fitness-consumer |   Тренировок: 1
-fitness-consumer |   • Силовая тренировка — 55 мин, объём 3500 кг
+login: admin
+password: admin123
 ```
 
-### RabbitMQ Management UI
+---
 
-Открыть в браузере: http://localhost:15672  
-Логин: `admin` / Пароль: `admin123`
+## Запуск вручную
 
-## Запуск только RabbitMQ (для ручного тестирования)
+### RabbitMQ
 
-```bash
+```bash id="rmq1"
 docker compose up rabbitmq
-
-# В другом терминале — запустить consumer
-cd src/consumer && pip install pika && python main.py
-
-# В третьем — запустить producer
-cd src/producer && pip install pika && python main.py
 ```
 
-## Описание архитектуры
+### Consumer
 
-Подробное описание событийно-ориентированной архитектуры, паттерна CQRS,  
-выбора RabbitMQ и схемы потоков данных находится в файле:
-**[event_driven_design.md](./event_driven_design.md)**
+```bash id="cons1"
+cd src/consumer
+pip install pika
+python main.py
+```
 
-Каталог всех событий с описанием структуры payload, производителей и  
-потребителей находится в файле:
-**[event_catalog.md](./event_catalog.md)**
+### Producer
 
-## Ключевые решения
+```bash id="prod1"
+cd src/producer
+pip install pika
+python main.py
+```
 
-| Решение | Обоснование |
-|---|---|
-| **RabbitMQ** | Простота настройки, гибкая маршрутизация через topic exchange, достаточная производительность для фитнес-трекера |
-| **Topic Exchange** | Позволяет гибко добавлять новых consumer'ов без изменения producer'а |
-| **at-least-once** | Надёжная доставка с ack; идемпотентность на стороне consumer |
-| **CQRS** | Разделение Write (UserService, WorkoutService) и Read (StatisticsService) моделей для оптимизации запросов истории и статистики |
-| **Идемпотентность** | Consumer хранит set обработанных event_id и пропускает дубликаты |
+---
+
+## Архитектура
+
+Проект основан на event-driven подходе:
+
+* Producer отправляет события в RabbitMQ
+* Consumer обрабатывает события
+* Read model обновляется асинхронно
+
+---
+
+## Основные решения
+
+| Решение        | Причина                                |
+| -------------- | -------------------------------------- |
+| RabbitMQ       | простая настройка для учебного проекта |
+| Topic exchange | гибкость маршрутизации                 |
+| CQRS           | разделение записи и чтения             |
+| at-least-once  | надёжная доставка                      |
+| idempotency    | защита от дублей                       |
+
+---
+
+## Итог
+
+Система демонстрирует базовую event-driven архитектуру:
+
+* асинхронная обработка событий
+* разделение write/read логики
+* расширяемая структура сервисов
+
+```
+```

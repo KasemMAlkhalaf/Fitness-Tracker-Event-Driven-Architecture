@@ -1,8 +1,3 @@
-"""
-Fitness Tracker — Event Producer
-Публикует события в RabbitMQ: UserCreated, WorkoutCreated, WorkoutCompleted
-"""
-
 import json
 import uuid
 import time
@@ -84,7 +79,6 @@ def main():
     channel = conn.channel()
     setup_exchanges(channel)
 
-    # --- Событие 1: Новый пользователь ---
     user_id = f"usr_{uuid.uuid4().hex[:8]}"
     user_event = make_event("UserCreated", {
         "user_id": user_id,
@@ -97,7 +91,6 @@ def main():
     publish(channel, EXCHANGES["user"], "user.created", user_event)
     time.sleep(1)
 
-    # --- Событие 2: Создание тренировки ---
     workout_id = f"wkt_{uuid.uuid4().hex[:8]}"
     workout_event = make_event("WorkoutCreated", {
         "workout_id": workout_id,
@@ -109,7 +102,6 @@ def main():
     publish(channel, EXCHANGES["workout"], "workout.created", workout_event)
     time.sleep(1)
 
-    # --- Событие 3: Добавление упражнения в тренировку ---
     exercise_added = make_event("ExerciseAddedToWorkout", {
         "workout_id": workout_id,
         "user_id": user_id,
@@ -124,7 +116,6 @@ def main():
     publish(channel, EXCHANGES["workout"], "workout.exercise.added", exercise_added)
     time.sleep(1)
 
-    # --- Событие 4: Завершение тренировки ---
     completed_event = make_event("WorkoutCompleted", {
         "workout_id": workout_id,
         "user_id": user_id,
